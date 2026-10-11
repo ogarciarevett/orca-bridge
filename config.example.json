@@ -1,0 +1,8 @@
+{
+  "identity": "<bridge-terminal>",
+  "allowed_targets": ["<coordinator-terminal>"],
+  "orca_command": "orca",
+  "body_bytes": 4096,
+  "subject_bytes": 160,
+  "sends_per_hour": 10
+}
