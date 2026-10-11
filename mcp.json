@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "orca-bridge": {
+      "type": "stdio",
+      "command": "orca-bridge-mcp",
+      "args": []
+    }
+  }
+}
