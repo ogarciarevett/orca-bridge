@@ -1,8 +1,7 @@
 # Orca Bridge
 
-A local stdio MCP plugin that lets an outside assistant send one constrained
-request to an Orca coordinator and read its replies. It works with Grok Bot,
-Cursor, Claude Code and Codex. Its MCP interface exposes exactly four tools;
+A local MCP bridge that sends one constrained request to an Orca coordinator
+and reads its replies. By default, its MCP interface exposes exactly four tools;
 a command-line interface provides the same safeguards for command-only clients.
 
 | Tool | Behavior |
@@ -11,6 +10,35 @@ a command-line interface provides the same safeguards for command-only clients.
 | `list_replies(since, limit)` | Read unseen replies, or replies after a returned message ID cursor |
 | `get_reply(id)` | Read one cached or recently received reply by ID |
 | `status()` | Show identity, allowed targets and limits |
+
+## Optional board tools
+
+To enable two additional MCP tools, add an owner-approved board executable to
+the existing private config. For example, replace these placeholders locally:
+
+```json
+{
+  "identity": "<bridge-terminal>",
+  "allowed_targets": ["<coordinator-terminal>"],
+  "board_command": "/absolute/path/to/board"
+}
+```
+
+Without `board_command`, stdio and HTTP advertise only the four default tools.
+With it, they also expose `board_items_safe()` and
+`board_set_status(item_id, status, note=None)`. The executable must be an absolute
+path to an owned regular executable file, with no symlink or group/world write
+permission. Invalid configuration refuses startup; restart after editing config.
+
+Items contain only numeric IDs, titles capped at 280 code points with controls
+removed, and statuses, labeled as untrusted data. Updates accept IDs of at most
+20 ASCII digits; statuses are `todo`, `in_progress`, `blocked`, `waiting_owner`
+or `done`; optional notes allow at most 280 code points and no controls.
+CLI output is limited to 64 KiB and 500 items. Malformed or ambiguous output is
+withheld, and errors never echo CLI output. Do not automatically retry updates
+whose outcome is uncertain. The board CLI retains all safe-policy, full-store,
+source-labeling, hourly-limit and notification checks. The bridge exposes no
+other board commands, and status changes never grant owner approval.
 
 ## Install and configure
 

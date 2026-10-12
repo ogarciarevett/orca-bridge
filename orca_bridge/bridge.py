@@ -41,6 +41,7 @@ class Config:
     body_bytes: int = 4096
     subject_bytes: int = 160
     sends_per_hour: int = 10
+    board_command: str | None = None
 
     def __post_init__(self):
         if (not isinstance(self.identity, str) or not HANDLE.fullmatch(self.identity)
@@ -57,6 +58,9 @@ class Config:
         if not all((bounded_int(self.body_bytes, 65536), bounded_int(self.subject_bytes, 512),
                     bounded_int(self.sends_per_hour, 100))):
             raise BridgeError('Invalid configured limits')
+        if self.board_command is not None:
+            from .board import validate_board_command
+            validate_board_command(self.board_command)
 
 
 def private_read(path):
@@ -79,9 +83,11 @@ def load_config(path=None):
         root = Path(os.environ.get('XDG_CONFIG_HOME', Path.home() / '.config'))
         path = root / 'orca-bridge' / 'config.json'
     data = private_read(Path(path))
-    fields = {'identity', 'allowed_targets', 'orca_command', 'body_bytes', 'subject_bytes', 'sends_per_hour'}
+    fields = {'identity', 'allowed_targets', 'orca_command', 'body_bytes', 'subject_bytes', 'sends_per_hour', 'board_command'}
     if not isinstance(data, dict) or set(data) - fields or not {'identity', 'allowed_targets'} <= set(data):
         raise BridgeError('Invalid private configuration schema')
+    if 'board_command' in data and data['board_command'] is None:
+        raise BridgeError('board unavailable')
     return Config(**data)
 
 
