@@ -115,7 +115,10 @@ sys.exit(response['code'])
 
     def test_fixed_process_settings_and_minimal_environment(self):
         real_run = subprocess.run
-        with patch('orca_bridge.board.subprocess.run', wraps=real_run) as run:
+        service = {'PATH': os.environ.get('PATH', '/usr/bin:/bin') + ':/service/bin',
+                   'ORCA_BRIDGE_HTTP_TOKEN': 'x' * 40, 'OTHER_SECRET': 'synthetic'}
+        with patch.dict(os.environ, service), \
+                patch('orca_bridge.board.subprocess.run', wraps=real_run) as run:
             self.board.items_safe()
         self.assertEqual(run.call_args.args[0], [str(self.executable), 'items', '--safe'])
         options = run.call_args.kwargs
@@ -125,7 +128,19 @@ sys.exit(response['code'])
         self.assertEqual(options['stderr'], subprocess.DEVNULL)
         self.assertEqual(options['timeout'], 20)
         self.assertEqual(set(options['env']), {'HOME', 'PATH'})
-        self.assertEqual(options['env']['PATH'], '/usr/bin:/bin')
+        # The board CLI needs the service PATH to find Node and the chief notifier.
+        self.assertEqual(options['env']['PATH'], service['PATH'])
+
+    def test_environment_falls_back_to_system_path(self):
+        real_run = subprocess.run
+        environment = {k: v for k, v in os.environ.items() if k != 'PATH'}
+        with patch.dict(os.environ, environment, clear=True), \
+                patch('orca_bridge.board.subprocess.run', wraps=real_run) as run:
+            try:
+                self.board.items_safe()
+            except BridgeError:
+                pass
+        self.assertEqual(run.call_args.kwargs['env']['PATH'], '/usr/bin:/bin')
 
     def test_cli_refusal_garbage_and_oversize_withhold_all_output(self):
         for response in (dict(code=1, output='private-output-marker'),

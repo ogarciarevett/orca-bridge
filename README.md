@@ -14,7 +14,8 @@ a command-line interface provides the same safeguards for command-only clients.
 ## Optional board tools
 
 To enable two additional MCP tools, add an owner-approved board executable to
-the existing private config. For example, replace these placeholders locally:
+the existing private config. The board process gets only HOME and the
+service PATH (so it can find its runtime). For example, replace these placeholders locally:
 
 ```json
 {

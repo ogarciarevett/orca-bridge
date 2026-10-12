@@ -31,6 +31,11 @@ def has_control(text):
     return any(unicodedata.category(char) in {'Cc', 'Cf', 'Cs'} for char in text)
 
 
+def board_environment():
+    # Keep only HOME and the service PATH, so Node and the chief notifier resolve without credentials.
+    return {'HOME': str(Path.home()), 'PATH': os.environ.get('PATH') or '/usr/bin:/bin'}
+
+
 class Board:
     def __init__(self, command):
         self.command = validate_board_command(command)
@@ -40,7 +45,7 @@ class Board:
         try:
             result = subprocess.run([self.command, *arguments], shell=False, stdin=subprocess.DEVNULL,
                                     stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=20,
-                                    env={'HOME': str(Path.home()), 'PATH': '/usr/bin:/bin'}, check=False)
+                                    env=board_environment(), check=False)
         except (OSError, subprocess.TimeoutExpired):
             raise BridgeError('board unavailable') from None
         if result.returncode != 0 or len(result.stdout) > 65536:
