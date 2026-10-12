@@ -25,7 +25,7 @@ TOKEN_NAME = 'ORCA_BRIDGE_HTTP_TOKEN'
 HOST = re.compile(r'[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?(?::[0-9]{1,5})?\Z')
 RPC_METHODS = {'initialize', 'ping', 'notifications/initialized', 'notifications/cancelled',
                'tools/list', 'tools/call', 'resources/list', 'resources/templates/list', 'prompts/list'}
-TOOLS = {'status', 'send_request', 'list_replies', 'get_reply'}
+TOOLS = {'status', 'send_request', 'list_replies', 'get_reply', 'board_items_safe', 'board_set_status'}
 
 
 @dataclass(frozen=True)
