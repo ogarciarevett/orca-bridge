@@ -64,6 +64,10 @@ class CliTests(unittest.TestCase):
         self.assertEqual(payload['reply_to'], self.fixture.identity)
         self.assertEqual(output['result']['id'], 'msg_test')
         self.assertNotIn('Inspect this request', text)
+        outbox = self.root / 'cli-state' / 'orca-bridge' / 'outbox.jsonl'
+        row = json.loads(outbox.read_text())
+        self.assertEqual(row['id'], output['result']['id'])
+        self.assertEqual(row['body'], 'Inspect this request')
 
     def test_send_explicit_question(self):
         self.run_cli('send', 'Please review this plan', '--kind', 'question')

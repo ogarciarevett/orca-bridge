@@ -4,6 +4,7 @@ import subprocess
 import tempfile
 import unittest
 import uuid
+from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from unittest.mock import patch
@@ -105,6 +106,105 @@ print(json.dumps({'ok': True, 'result': result}))
         self.assertTrue(payload['external_untrusted_input'])
         self.assertEqual(payload['reply_to'], self.identity)
         self.assertEqual(receipt['id'], 'msg_test')
+
+    def test_outbox_records_checked_user_text_and_utc_receipt(self):
+        receipt = self.send(subject='Review', body='Review this plan\nSecond line')
+        path = self.root / 'state' / 'outbox.jsonl'
+        rows = [json.loads(line) for line in path.read_text().splitlines()]
+        self.assertEqual(len(rows), 1)
+        row = rows[0]
+        self.assertEqual(set(row), {'id', 'created_at', 'to_handle', 'kind', 'subject', 'body', 'owner_confirmation'})
+        self.assertEqual(row['id'], receipt['id'])
+        self.assertEqual(row['to_handle'], self.target)
+        self.assertEqual(row['kind'], 'question')
+        self.assertEqual(row['subject'], 'Review')
+        self.assertEqual(row['body'], 'Review this plan\nSecond line')
+        self.assertEqual(row['owner_confirmation'], receipt['owner_confirmation'])
+        self.assertTrue(row['created_at'].endswith('Z'))
+        self.assertEqual(datetime.fromisoformat(row['created_at'].replace('Z', '+00:00')).tzinfo, timezone.utc)
+        self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+        self.assertNotIn('outbox', receipt)
+
+    def test_outbox_symlink_and_shared_permissions_do_not_fail_delivered_send(self):
+        path = self.root / 'state' / 'outbox.jsonl'
+        path.symlink_to(self.mail)
+        before = self.mail.read_text()
+        self.assertEqual(self.send()['outbox'], 'not-recorded')
+        self.assertEqual(self.mail.read_text(), before)
+        self.assertTrue(path.is_symlink())
+        path.unlink()
+        path.write_text('')
+        path.chmod(0o644)
+        self.assertEqual(self.send()['outbox'], 'not-recorded')
+        self.assertEqual(path.read_text(), '')
+
+    def test_outbox_failure_does_not_fail_delivered_send(self):
+        path = self.root / 'state' / 'outbox.jsonl'
+        path.mkdir()
+        receipt = self.send()
+        self.assertEqual(receipt['id'], 'msg_test')
+        self.assertEqual(receipt['delivery'], 'durably-enqueued')
+        self.assertEqual(receipt['outbox'], 'not-recorded')
+
+    def test_outbox_disk_failure_cannot_trigger_postdelivery_state_write_error(self):
+        path = self.root / 'state' / 'outbox.jsonl'
+        original_open, original_save = os.open, self.bridge.save
+        saves = []
+        def save_once(data):
+            if saves:
+                raise OSError('Disk full')
+            saves.append(True)
+            return original_save(data)
+        def open_unless_outbox(filename, *args, **kwargs):
+            if filename == path:
+                raise OSError('Disk full')
+            return original_open(filename, *args, **kwargs)
+        with patch.object(self.bridge, 'save', side_effect=save_once), \
+                patch('orca_bridge.bridge.os.open', side_effect=open_unless_outbox):
+            receipt = self.send()
+        self.assertEqual(receipt['id'], 'msg_test')
+        self.assertEqual(receipt['outbox'], 'not-recorded')
+        self.assertEqual(len(saves), 1)
+
+    def test_failed_ambiguous_and_invalid_receipts_do_not_write_outbox(self):
+        path = self.root / 'state' / 'outbox.jsonl'
+        for error in (BridgeError('Orca command failed; delivery may be unknown'),
+                      subprocess.TimeoutExpired('fake-orca', 15)):
+            with self.subTest(error=type(error).__name__), patch.object(self.bridge, 'command', side_effect=error):
+                with self.assertRaises(Exception):
+                    self.send()
+            self.assertFalse(path.exists())
+        with patch.object(self.bridge, 'command', return_value={'message': {}}):
+            with self.assertRaises(BridgeError):
+                self.send()
+        self.assertFalse(path.exists())
+
+    def test_outbox_keeps_newest_500_rows_with_atomic_compaction(self):
+        self.send()
+        path = self.root / 'state' / 'outbox.jsonl'
+        sample = json.loads(path.read_text())
+        path.write_text(''.join(json.dumps(dict(sample, id='old_' + str(i))) + '\n' for i in range(500)))
+        real_replace = os.replace
+        with patch('orca_bridge.bridge.os.replace', wraps=real_replace) as replace:
+            self.send()
+        rows = [json.loads(line) for line in path.read_text().splitlines()]
+        self.assertEqual(len(rows), 500)
+        self.assertEqual(rows[0]['id'], 'old_1')
+        self.assertEqual(rows[-1]['id'], 'msg_test')
+        self.assertTrue(any(call.args[1] == path for call in replace.call_args_list))
+        self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+
+    def test_outbox_compacts_to_serialized_byte_limit(self):
+        self.send()
+        path = self.root / 'state' / 'outbox.jsonl'
+        sample = json.loads(path.read_text())
+        path.write_text(''.join(json.dumps(dict(sample, id='old_' + str(i), body='x' * 4096)) + '\n'
+                                for i in range(500)))
+        self.send()
+        rows = [json.loads(line) for line in path.read_text().splitlines()]
+        self.assertLessEqual(path.stat().st_size, 2 * 1024 * 1024)
+        self.assertLessEqual(len(rows), 500)
+        self.assertEqual(rows[-1]['id'], 'msg_test')
 
     def test_risky_actions_delivered_with_confirmation_tag(self):
         for text in ('delete files', 'pay invoice', 'publish release', 'message other people',

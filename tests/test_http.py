@@ -223,6 +223,10 @@ class HttpTests(unittest.TestCase):
             server.should_exit = True
             thread.join(timeout=5)
         self.assertFalse(thread.is_alive())
+        rows = [json.loads(line) for line in (self.fixture.bridge.state_dir / 'outbox.jsonl').read_text().splitlines()]
+        self.assertEqual(len(rows), 2)
+        self.assertTrue(all(row['body'] == 'Review this plan' and row['to_handle'] == self.fixture.target
+                            for row in rows))
 
 
 if __name__ == '__main__':

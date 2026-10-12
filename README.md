@@ -65,6 +65,12 @@ invalidate its handle: create a new mailbox and update config. Preserve the old
 state directory separately before switching identity; identity mismatch fails
 closed to avoid reading another mailbox's markers.
 
+Successful sends also keep a private `outbox.jsonl` in the state directory,
+containing only text already checked by Bridge, without the transport prefix.
+It retains the newest 500 rows within 2 MiB and is not exposed by any tool.
+Failed or ambiguous sends add nothing; if recording fails after delivery, the
+normal send result includes `"outbox": "not-recorded"`.
+
 ## Coordinator replies
 
 Each request has a fixed `[EXTERNAL UNTRUSTED INPUT]` prefix on its subject and
