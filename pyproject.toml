@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "orca-bridge"
-version = "0.1.0"
+version = "0.2.0"
 description = "A constrained stdio MCP bridge to an Orca coordinator"
 requires-python = ">=3.10"
 dependencies = ["mcp>=1.20,<2"]
@@ -12,6 +12,7 @@ license = "MIT"
 readme = "README.md"
 
 [project.scripts]
+orca-bridge = "orca_bridge.cli:main"
 orca-bridge-mcp = "orca_bridge.server:main"
 
 [tool.setuptools.packages.find]
