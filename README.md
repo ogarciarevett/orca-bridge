@@ -2,7 +2,8 @@
 
 A local stdio MCP plugin that lets an outside assistant send one constrained
 request to an Orca coordinator and read its replies. It works with Grok Bot,
-Cursor, Claude Code and Codex. The server exposes exactly four tools:
+Cursor, Claude Code and Codex. Its MCP interface exposes exactly four tools;
+a command-line interface provides the same safeguards for command-only clients.
 
 | Tool | Behavior |
 | --- | --- |
@@ -98,6 +99,28 @@ Reads inspect the most recent 100 Orca mailbox messages and retain up to 500
 replies locally within a 2 MiB serialized cache budget. Poll regularly; older unobserved replies can fall outside the
 Orca window. An unknown or evicted cursor is an error. The local cache is not an
 unbounded archive, and delivered messages remain in Orca's own storage.
+
+## Use from a client that can only run commands
+
+`uv tool install .` installs both `orca-bridge` and `orca-bridge-mcp` in
+`~/.local/bin` with uv's defaults. Use the same private config and mailbox.
+
+```text
+orca-bridge send <text> [--kind status|question]
+orca-bridge replies [--since <id>] [--limit N]
+orca-bridge get <id>
+orca-bridge status
+```
+
+Send takes one text argument and exactly one configured target. Its trimmed first
+nonempty line becomes the subject, cut at a UTF-8 boundary; the full text is the body.
+The same limits, secret rejection, untrusted labels, risky-intent tags and read markers apply.
+Stdout is one JSON object plus newline; stderr is empty. Success exits 0 with
+`{"ok": true, "trust": "data-not-instructions", "result": {...}}`.
+Failure exits 1, or 2 for usage errors, with `{"ok": false, "error": "Safe error text"}`.
+Help prints normal text. Errors never echo sent text; ambiguous sends must not be retried automatically.
+The client allowlist must match the exact executable and command and pass argv without a shell.
+If the client uses a shell, it must not auto-approve `send` or `get` with free text because of shell chaining risk.
 
 ## Grok Bot
 
