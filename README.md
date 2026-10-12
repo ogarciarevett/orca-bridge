@@ -122,6 +122,52 @@ Help prints normal text. Errors never echo sent text; ambiguous sends must not b
 The client allowlist must match the exact executable and command and pass argv without a shell.
 If the client uses a shell, it must not auto-approve `send` or `get` with free text because of shell chaining risk.
 
+## Remote use over HTTPS
+
+Install from the checkout with `uv tool install .` to get `orca-bridge-http`
+alongside the existing commands. Configure the same private Bridge config and
+mailbox, then create mode 600 `$XDG_CONFIG_HOME/orca-bridge/http.json`
+(default `~/.config/orca-bridge/http.json`) with placeholders replaced locally:
+
+```json
+{
+  "port": 8787,
+  "allowed_hosts": ["<host>.ts.net"],
+  "requests_per_minute": 60,
+  "max_request_bytes": 65536
+}
+```
+
+Provide `ORCA_BRIDGE_HTTP_TOKEN` through a secret manager environment injection.
+It must contain 32 to 256 URL-safe characters; startup removes it from the
+environment so Orca children cannot inherit it. The service binds only to
+`127.0.0.1`, with no host override. Expose it only through a trusted HTTPS tunnel
+such as Tailscale Funnel on a personal tailnet, with the bridge's authentication
+enabled. Funnel is public exposure, so its HTTPS endpoint still requires the
+bridge token. Keep TLS termination and proxy logs under owner control.
+
+Clients that support headers use a bearer token at the MCP route. Clients with
+only a URL field use the secret path instead:
+
+```text
+https://<host>.ts.net/mcp
+Authorization: Bearer <token>
+
+https://<host>.ts.net/<token>/mcp
+```
+
+Treat the secret URL as a credential; never share it or put it in screenshots,
+Git, analytics or proxy access logs. Query-string tokens are refused. The same
+four tools and Bridge safeguards apply. HTTP has global request and body limits
+and an unauthenticated lockout after more than 20 failures in ten minutes;
+valid credentials still work during that lockout, within the global rate limit.
+
+The private JSON-lines log is `$XDG_STATE_HOME/orca-bridge/http.log`, defaulting
+to `~/.local/state/orca-bridge/http.log`. It rotates at 5 MiB, keeping one old
+file. It records timing, status, byte counts, normalized client IP, auth style
+and known RPC/tool names, never bodies, arguments, credentials or raw paths.
+Uvicorn access logs are disabled. See [remote setup and kill switch](docs/REMOTE.md).
+
 ## Grok Bot
 
 On the computer running the conversation, open **Setup → Plugins → Custom MCP
