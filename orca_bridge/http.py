@@ -162,12 +162,6 @@ class Gateway:
 
         try:
             now = self.clock()
-            while self.requests and self.requests[0] <= now - 60:
-                self.requests.popleft()
-            if len(self.requests) >= self.settings.requests_per_minute:
-                await reject(429)
-                return
-            self.requests.append(now)
             if not authenticated:
                 while self.failures and self.failures[0] <= now - 600:
                     self.failures.popleft()
@@ -181,6 +175,13 @@ class Gateway:
                     return
                 await reject(404 if route == 'other' else 401)
                 return
+            # Only authenticated requests use the shared budget, so strangers cannot exhaust it.
+            while self.requests and self.requests[0] <= now - 60:
+                self.requests.popleft()
+            if len(self.requests) >= self.settings.requests_per_minute:
+                await reject(429)
+                return
+            self.requests.append(now)
             if route == 'other':
                 await reject(404)
                 return

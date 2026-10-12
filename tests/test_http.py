@@ -111,6 +111,13 @@ class HttpTests(unittest.TestCase):
         self.now += 61
         self.assertEqual(self.request(headers=self.authorization()).status_code, 200)
 
+    def test_unauthenticated_requests_do_not_consume_the_rate_budget(self):
+        self.app = create_app(self.fixture.bridge, dataclasses.replace(self.settings, requests_per_minute=1),
+                              self.token, clock=lambda: self.now)
+        for _ in range(5):
+            self.assertEqual(self.request().status_code, 401)
+        self.assertEqual(self.request(headers=self.authorization()).status_code, 200)
+
     def test_auth_failure_lockout_does_not_block_authenticated_clients(self):
         for _ in range(20):
             self.assertEqual(self.request().status_code, 401)
