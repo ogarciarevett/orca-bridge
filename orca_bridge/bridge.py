@@ -10,6 +10,7 @@ import tempfile
 import time
 from contextlib import contextmanager
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 
 PREFIX = '[EXTERNAL UNTRUSTED INPUT]'
@@ -100,7 +101,7 @@ class Bridge:
             raise BridgeError('Cannot open private state directory') from None
 
     @contextmanager
-    def state(self):
+    def state(self, save_on_exit=True):
         try:
             fd = os.open(self.state_dir / 'lock', os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
             with os.fdopen(fd, 'r+') as lock:
@@ -122,7 +123,8 @@ class Bridge:
                         or any(not isinstance(x, str) for x in data['read'])):
                     raise BridgeError('Invalid state; preserve it and ask the owner to repair it')
                 yield data
-                self.save(data)
+                if save_on_exit:
+                    self.save(data)
         except OSError:
             raise BridgeError('Cannot access private state') from None
 
@@ -137,6 +139,47 @@ class Bridge:
         finally:
             if os.path.exists(name):
                 os.unlink(name)
+
+    def _record_outbox(self, row):
+        """Append under the caller's state lock, compacting before either bound is exceeded."""
+        path = self.state_dir / 'outbox.jsonl'
+        maximum = 2 * 1024 * 1024
+        encoded = (json.dumps(row, ensure_ascii=False, separators=(',', ':')) + '\n').encode('utf-8')
+        if len(encoded) > maximum:
+            raise BridgeError('Outbox record exceeds its byte bound')
+        fd = os.open(path, os.O_CREAT | os.O_RDWR | os.O_APPEND | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600)
+        with os.fdopen(fd, 'r+b') as source:
+            info = os.fstat(source.fileno())
+            if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or info.st_mode & 0o077:
+                raise BridgeError('Outbox must be a private regular file owned by this account')
+            # A previously oversized file needs only its bounded tail for compaction.
+            if info.st_size > maximum:
+                source.seek(info.st_size - maximum)
+                source.readline()
+            lines = source.read().splitlines(keepends=True)
+            for line in lines:
+                if not line.endswith(b'\n') or not isinstance(json.loads(line), dict):
+                    raise BridgeError('Invalid outbox record')
+            lines.append(encoded)
+            if len(lines) <= 500 and info.st_size + len(encoded) <= maximum:
+                source.write(encoded)
+                source.flush()
+                os.fsync(source.fileno())
+                return
+            lines = lines[-500:]
+            size = sum(len(line) for line in lines)
+            while size > maximum:
+                size -= len(lines.pop(0))
+            temp_fd, name = tempfile.mkstemp(dir=self.state_dir, prefix='.outbox-')
+            try:
+                with os.fdopen(temp_fd, 'wb') as output:
+                    output.writelines(lines)
+                    output.flush()
+                    os.fsync(output.fileno())
+                os.replace(name, path)
+            finally:
+                if os.path.exists(name):
+                    os.unlink(name)
 
     def command(self, arguments):
         # Do not inherit assistant credentials or ambient Dispatch identity.
@@ -178,7 +221,9 @@ class Bridge:
         confirmation = 'needs-owner-confirmation' if RISK.search(subject + '\n' + body) else 'review-required'
         payload = dict(external_untrusted_input=True, source='orca-bridge',
                        owner_confirmation=confirmation, reply_to=self.config.identity)
-        with self.state() as state:
+        # The rate reservation is saved before dispatch; avoid another state write
+        # after delivery that could mask an outbox failure such as a full disk.
+        with self.state(save_on_exit=False) as state:
             now = self.clock()
             state['sends'] = [t for t in state['sends'] if t > now - 3600]
             if len(state['sends']) >= self.config.sends_per_hour:
@@ -193,7 +238,14 @@ class Bridge:
             message = receipt.get('message')
             if not isinstance(message, dict) or not isinstance(message.get('id'), str):
                 raise BridgeError('Invalid Orca response')
-        return dict(id=message['id'], owner_confirmation=confirmation, delivery='durably-enqueued')
+            result = dict(id=message['id'], owner_confirmation=confirmation, delivery='durably-enqueued')
+            try:
+                self._record_outbox(dict(id=message['id'], created_at=datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
+                                         to_handle=target, kind=kind, subject=subject, body=body,
+                                         owner_confirmation=confirmation))
+            except Exception:
+                result['outbox'] = 'not-recorded'
+        return result
 
     def refresh(self, state):
         result = self.command(['inbox', '--terminal', self.config.identity, '--limit', '100', '--json'])
