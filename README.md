@@ -1,4 +1,19 @@
-# Orca Bridge
+<div align="center">
+
+<img src=".github/assets/orca-bridge.svg" width="180" alt="orca-bridge: an orca leaping over a bridge arch">
+
+# orca-bridge
+
+**Send constrained MCP requests to an Orca coordinator.**
+
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Python 3.10+](https://img.shields.io/badge/Python_3%2E10%2B-3776AB.svg)](#install-and-configure)
+
+Works with **Orca** · **MCP**
+
+</div>
+
+---
 
 A local MCP bridge that sends one constrained request to an Orca coordinator
 and reads its replies. By default, its MCP interface exposes exactly four tools;
@@ -10,6 +25,34 @@ a command-line interface provides the same safeguards for command-only clients.
 | `list_replies(since, limit)` | Read unseen replies, or replies after a returned message ID cursor |
 | `get_reply(id)` | Read one cached or recently received reply by ID |
 | `status()` | Show identity, allowed targets and limits |
+
+```mermaid
+flowchart LR
+    assistant["Outside assistant<br/>Grok Bot · Cursor · Claude Code · Codex"] -->|send_request| bridge["orca-bridge-mcp<br/>allowlist, limits, secret check"]
+    bridge -->|orca orchestration send| coordinator["Allowlisted Orca coordinator"]
+    coordinator -->|status reply to reply_to| mailbox[("Bridge mailbox terminal")]
+    mailbox -->|orca orchestration inbox| bridge
+    bridge -->|list_replies, get_reply<br/>labeled data-not-instructions| assistant
+```
+
+## Quick start
+
+The full steps and the reasons behind them are in [Install and configure](#install-and-configure).
+
+```sh
+uv tool install .
+orca terminal create --worktree current --title 'bridge mailbox' --json
+mkdir -p "${XDG_CONFIG_HOME:-$HOME/.config}/orca-bridge"
+chmod 700 "${XDG_CONFIG_HOME:-$HOME/.config}/orca-bridge"
+cp config.example.json "${XDG_CONFIG_HOME:-$HOME/.config}/orca-bridge/config.json"
+chmod 600 "${XDG_CONFIG_HOME:-$HOME/.config}/orca-bridge/config.json"
+```
+
+Set `identity` to the new mailbox handle and `allowed_targets` to the approved coordinator handle, then register `orca-bridge-mcp` in your client, for example:
+
+```sh
+claude mcp add --scope user --transport stdio orca-bridge -- orca-bridge-mcp
+```
 
 ## Optional board tools
 
