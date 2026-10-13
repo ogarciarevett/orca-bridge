@@ -1,10 +1,19 @@
-<p align="center">
-  <img src=".github/assets/banner.png" alt="orca-bridge: constrained MCP bridge from an outside assistant to an allowlisted Orca coordinator" width="100%">
-</p>
+<div align="center">
 
-# Orca Bridge
+<img src=".github/assets/orca-bridge.svg" width="180" alt="orca-bridge: an orca leaping over a bridge arch">
+
+# orca-bridge
+
+**Send constrained MCP requests to an Orca coordinator.**
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Python 3.10+](https://img.shields.io/badge/Python_3%2E10%2B-3776AB.svg)](#install-and-configure)
+
+Works with **Orca** · **MCP**
+
+</div>
+
+---
 
 A local MCP bridge that sends one constrained request to an Orca coordinator
 and reads its replies. By default, its MCP interface exposes exactly four tools;

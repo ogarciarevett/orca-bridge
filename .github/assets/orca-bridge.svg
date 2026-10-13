@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+<title id="title">orca-bridge logo</title>
+<desc id="desc">An orca leaping over a bridge arch.</desc>
+<g stroke="#283C46" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
+<path d="M40 219v-34c0-46 39-81 88-81s88 35 88 81v34h-37v-33c0-27-22-47-51-47s-51 20-51 47v33Z" fill="#63CCC6"/><path d="M47 92c17-32 43-50 82-50l20-18 6 29c20 6 35 17 44 32l20-10-3 25 17 15-29 2c-20 25-56 36-92 22-30-11-49-25-65-47Z" fill="#446979"/><path d="M98 100c20-7 47-5 71 14-23 16-50 13-71-14Z" fill="#EEF1EF" stroke="none"/><ellipse cx="91" cy="75" rx="13" ry="8" fill="#EEF1EF" stroke="none"/><path d="M39 220h178" fill="none"/>
+</g>
+</svg>
