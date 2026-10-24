@@ -102,6 +102,7 @@ in your client configuration:
 
 ```sh
 python3 -m venv .venv
+.venv/bin/python -m pip install "pip @ https://files.pythonhosted.org/packages/3f/06/3e4420302363fbb71be3c7f35ce042f54bfca330e3e66b3a2e3c4cca579f/pip-26.2.2-py3-none-any.whl#sha256=fd7f4dfa8190e014013b9f08f3e973f4e4c26ffd179a204895533a7254813a70"
 .venv/bin/python -m pip install .
 ```
 
@@ -354,3 +355,6 @@ allowlist enforcement, byte and rate limits, concurrency, fixed argv, labels,
 risk tags, secret rejection, reply filtering and markers, config validation,
 and real MCP stdio initialization. Actual client UI setup is a separate manual
 check. Released under the [MIT license](LICENSE).
+
+Python downloads require patched trust tooling: pip >=26.2.2 (bootstrap above),
+certifi >=2026.10.19, and uv >=0.13.4 when using uv.
